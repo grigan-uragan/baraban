@@ -1,72 +1,51 @@
 package ru.grigan.baraban.controler;
 
+import com.fasterxml.jackson.annotation.JsonView;
+import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
-import ru.grigan.baraban.exception.NotFoundException;
+import ru.grigan.baraban.domain.Message;
+import ru.grigan.baraban.domain.Views;
+import ru.grigan.baraban.repository.MessageRepository;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequestMapping("/message")
 public class MessageController {
-    private AtomicInteger counter = new AtomicInteger(3);
-    private List<Map<String, String>> messages = new ArrayList<>() {
-        {
-            add(new HashMap<>() {{
-                put("id", "1");
-                put("text", "First message");
-            }});
-            add(new HashMap<>() {{
-                put("id", "2");
-                put("text", "Second message");
-            }});
-            add(new HashMap<>() {{
-                put("id", "3");
-                put("text", "Third message");
-            }});
-        }
-    };
+    private final MessageRepository messageRepository;
+
+    public MessageController(MessageRepository messageRepository) {
+        this.messageRepository = messageRepository;
+    }
 
     @GetMapping
-    public List<Map<String, String>> getMessages() {
-        return messages;
+    @JsonView(Views.IdName.class)
+    public List<Message> getMessages() {
+        return messageRepository.findAll();
     }
 
     @GetMapping("{id}")
-    public Map<String, String> getMessageById(@PathVariable String id) {
-        return getMessageFromDB(id);
-    }
-
-    @PostMapping
-    public Map<String, String> create(@RequestBody Map<String, String> message) {
-        message.put("id", String.valueOf(counter.incrementAndGet()));
-        messages.add(message);
+    @JsonView(Views.FullMessage.class)
+    public Message getMessageById(@PathVariable("id") Message message) {
         return message;
     }
 
+    @PostMapping
+    public Message create(@RequestBody Message message) {
+        message.setCreated(LocalDateTime.now());
+        return messageRepository.save(message);
+    }
+
     @PutMapping("{id}")
-    public Map<String, String> update(@PathVariable String id,
-                                      @RequestBody Map<String, String> message) {
-        Map<String, String> messageFromDB = getMessageFromDB(id);
-        messageFromDB.putAll(message);
-        messageFromDB.put("id", id);
-        return messageFromDB;
+    public Message update(@PathVariable("id") Message messageFromDb,
+                          @RequestBody Message message) {
+        BeanUtils.copyProperties(message, messageFromDb, "id");
+        return messageRepository.save(messageFromDb);
     }
 
     @DeleteMapping("{id}")
-    public void delete(@PathVariable String id) {
-        Map<String, String> messageFromDB = getMessageFromDB(id);
-        messages.remove(messageFromDB);
-    }
-
-    private Map<String, String> getMessageFromDB(String id) {
-        return messages
-                .stream()
-                .filter(m -> m.get("id").equals(id))
-                .findFirst()
-                .orElseThrow(NotFoundException::new);
+    public void delete(@PathVariable("id") Message message) {
+        messageRepository.delete(message);
     }
 }
